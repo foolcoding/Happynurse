@@ -1,0 +1,22 @@
+# 원본 문서: 질병관리청 공개 자료, README의 링크에서 받아 rag-service/docs/ 에 넣는다
+rag-service/docs/*.pdf
+
+# 파이프라인 실행 결과 (parse → chunk → index 로 다시 만들어짐)
+rag-service/pages.json
+rag-service/chunks.json
+rag-service/chroma/
+rag-service/noise_report.json
+rag-service/eval_result.json
+rag-service/eval_draft.json
+rag-service/page15.md
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+
+# Next.js
+web/node_modules/
+web/.next/
+web/next-env.d.ts
+web/*.tsbuildinfo

@@ -1,0 +1,10 @@
+pymupdf==2.0
+pymupdf4llm==2.0
+pymupdf_layout==2.0
+chromadb==1.5.9
+pytest==9.2.0
+sentence-transformers
+# GPU용 torch는 따로: pip install torch --index-url https://download.pytorch.org/whl/cu124
+fastapi==0.133.1
+uvicorn==0.41.0
+httpx==0.28.1

@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/PretendardVariable.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@theme inline {
+  --font-sans: "Pretendard", sans-serif;
+
+  --color-brand-primary: #15289f;
+  --color-brand-hover: #101e7a;
+  --color-brand-surface: #e7e9f5;
+  --color-brand-text: #ffffff;
+
+  --color-sub-primary: #1e293b;
+
+  --color-action-blue: #3060ff;
+  --color-action-blue-surface: #eaf0ff;
+
+  --color-surface-base: #fafafa;
+  --color-surface-card: #ffffff;
+  --color-surface-hover: #f3f4f6;
+  --color-border-base: #e5e5e5;
+  --color-border-subtle: #e5e7eb;
+  --color-content-primary: #111111;
+  --color-content-secondary: #374151;
+  --color-content-tertiary: #4b5563;
+  --color-content-quaternary: #6b7280;
+  --color-content-muted: #9ca3af;
+
+  --color-status-warning: #d97706;
+  --color-status-warning-surface: #fffbeb;
+  --color-status-danger: #e11d48;
+  --color-status-danger-surface: #fff1f2;
+
+  --text-title-md: 1.25rem;
+  --text-body-base: 1rem;
+  --text-body-sm: 0.875rem;
+  --text-body-xs: 0.8125rem;
+  --text-body-micro: 0.75rem;
+
+  --radius-lg: 0.625rem;
+}
+
+body {
+  background: #e9ebf0;
+  color: var(--color-content-primary);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
