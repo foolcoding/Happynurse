@@ -8,6 +8,7 @@ from collections import Counter
 from functools import cache
 
 os.environ.setdefault("USE_TF", "0")    # transformers가 사용자 폴더의 tensorflow까지 불러오지 않게 (느리고 로그가 지저분함)
+os.environ.setdefault("HF_HUB_OFFLINE", "1")    # 폐쇄망: 모델은 HF_CACHE에 미리 넣어 두고 외부 확인 요청을 안 보냄 (처음 받을 때만 0으로)
 
 from index import OLLAMA, embed, get_collection
 

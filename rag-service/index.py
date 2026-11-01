@@ -23,9 +23,9 @@ def embed_text(c):
   return f"{c['path']}\n{c['text']}" if c["path"] else c["text"]
 
 
-def get_collection():
+def get_collection(name=COLLECTION):
   client = chromadb.PersistentClient(path=DB_DIR)
-  return client.get_or_create_collection(COLLECTION, metadata={"hnsw:space": "cosine"})
+  return client.get_or_create_collection(name, metadata={"hnsw:space": "cosine"})
 
 
 def index(chunks, col):

@@ -1,12 +1,10 @@
 import json
-import re
 from statistics import median
 
-from chunk import EXCLUDE_PAGES, EXCLUDE_TITLES, MAX_CHARS, make_chunks, merge_short, split_long
+from chunk import EXCLUDE_PAGES, EXCLUDE_TITLES, MAX_CHARS, make_chunks, merge_short, noise_signals, split_long
 
 NOISE_REPORT = "noise_report.json"    # 잡음 의심 청크 id 목록: 사람이 이 id만 열어 확인
 NOISE_MAX = 0.02    # 잡음 의심 청크가 전체의 2%를 넘으면 실패
-REF = re.compile(r"et al|\b(?:19|20)\d{2}\s*[;:]|doi|https?://", re.I)
 
 
 # ── 단위 검사: 문서 없이 가짜 데이터로 로직만 본다 ──
@@ -67,21 +65,6 @@ def test_scope(chunks):
   bad_page = sum(any(a <= p <= b for p in c["pages"] for a, b in EXCLUDE_PAGES) for c in chunks)
   print(f"\n제외 제목 남음 {bad_title}개 · 제외 쪽 남음 {bad_page}개")
   assert bad_title == 0 and bad_page == 0, "제외한 범위가 청크에 남음"
-
-
-def noise_signals(c):
-  t = c["text"]
-  latin, hangul = len(re.findall(r"[A-Za-z]", t)), len(re.findall(r"[가-힣]", t))
-  signals = []
-  if len(REF.findall(t)) >= 3:
-    signals.append("인용 목록")
-  if latin > hangul:
-    signals.append("영문 위주")
-  if t.count("<br>") >= 20:
-    signals.append("표 조각")
-  if c["pages"][-1] - c["pages"][0] >= 4:
-    signals.append("5쪽 이상")    # 제목 인식 실패로 여러 쪽이 한 절로 뭉친 것
-  return signals
 
 
 def test_noise(chunks):

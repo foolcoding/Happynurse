@@ -52,7 +52,7 @@ def split_long(text, max_chars=MAX_CHARS):
   return pack(pieces, "\n\n", max_chars)
 
 
-def merge_short(chunks, min_chars=100, max_chars=MAX_CHARS + 100):
+def merge_short(chunks, min_chars=100, max_chars=MAX_CHARS + 100, doc_id=DOC_ID):
   # 100자 미만 청크는 버리지 않고 앞 청크에, 앞이 꽉 찼으면 뒤 청크에 붙임 (제목을 같이 넣어 소속이 보이게)
   # 짧은 청크를 붙일 때만 MAX_CHARS를 100자까지 넘겨도 됨: 혼자 남아 검색에 안 걸리는 것보다 낫다
   def labeled(short, other):
@@ -84,11 +84,11 @@ def merge_short(chunks, min_chars=100, max_chars=MAX_CHARS + 100):
   if carry:
     out.append(carry)
   for i, c in enumerate(out):    # 합친 뒤 ID 다시 매김
-    c["id"] = f"{DOC_ID}-{i:04d}"
+    c["id"] = f"{doc_id}-{i:04d}"
   return out
 
 
-def make_chunks(pages, exclude_pages=EXCLUDE_PAGES):
+def make_chunks(pages, exclude_pages=EXCLUDE_PAGES, doc_id=DOC_ID, version=VERSION):
   chunks, path, body, body_pages = [], [], [], set()
 
   def flush():
@@ -97,9 +97,9 @@ def make_chunks(pages, exclude_pages=EXCLUDE_PAGES):
     if text and not excluded:
       for part in split_long(text):
         chunks.append({
-          "id": f"{DOC_ID}-{len(chunks):04d}",
-          "doc_id": DOC_ID,
-          "version": VERSION,
+          "id": f"{doc_id}-{len(chunks):04d}",
+          "doc_id": doc_id,
+          "version": version,
           "pages": sorted(body_pages),    # 출처 표시용
           "path": " > ".join(t for _, t in path),    # 예: 3 손위생 > 3.2 권고
           "text": part.strip(),
@@ -125,7 +125,26 @@ def make_chunks(pages, exclude_pages=EXCLUDE_PAGES):
         if line.strip():
           body_pages.add(p["page"])
   flush()
-  return merge_short(chunks)
+  return merge_short(chunks, doc_id=doc_id)
+
+
+REF = re.compile(r"et al|\b(?:19|20)\d{2}\s*[;:]|doi|https?://", re.I)
+
+
+def noise_signals(c):
+  # 범위 설정으로 못 거른 잡음 신호 (test_chunk와 업로드 검사가 같이 씀)
+  t = c["text"]
+  latin, hangul = len(re.findall(r"[A-Za-z]", t)), len(re.findall(r"[가-힣]", t))
+  signals = []
+  if len(REF.findall(t)) >= 3:
+    signals.append("인용 목록")
+  if latin > hangul:
+    signals.append("영문 위주")
+  if t.count("<br>") >= 20:
+    signals.append("표 조각")
+  if c["pages"][-1] - c["pages"][0] >= 4:
+    signals.append("5쪽 이상")    # 제목 인식 실패로 여러 쪽이 한 절로 뭉친 것
+  return signals
 
 
 if __name__ == "__main__":

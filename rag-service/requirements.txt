@@ -8,3 +8,4 @@ sentence-transformers
 fastapi==0.133.1
 uvicorn==0.41.0
 httpx==0.28.1
+python-multipart==0.0.22

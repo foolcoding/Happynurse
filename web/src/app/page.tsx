@@ -94,7 +94,10 @@ export default function Page() {
   return (
     <main className="mx-auto flex h-dvh max-w-[430px] flex-col bg-surface-base shadow-xl">
       <header className="bg-brand-primary px-5 pt-5 pb-4 text-brand-text">
-        <p className="text-body-micro opacity-80">HappyNurse</p>
+        <div className="flex justify-between text-body-micro opacity-80">
+          <p>HappyNurse</p>
+          <a href="/admin">문서 관리</a>
+        </div>
         <h1 className="text-title-md font-bold">감염관리 지침 도우미</h1>
         <p className="mt-1 text-body-micro opacity-80">
           질병관리청 의료관련감염 표준예방지침 · 2017 (2019 웹 수정판)
