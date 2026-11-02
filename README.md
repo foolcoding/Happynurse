@@ -10,26 +10,80 @@
 
 ## 구성
 
-```
-[웹 · 앱]  ──POST /ask/stream (SSE)──▶  [rag-service · FastAPI]
-                                           │
-             ┌─────────────────────────────┼──────────────────────────────┐
-             ▼                             ▼                              ▼
-   임베딩 검색 20개 (bge-m3)      키워드 검색 20개 (BM25)          문서 원본 (PDF 323쪽)
-             └──────────────┬──────────────┘                              │
-                            ▼                                    parse → chunk → index
-              리랭커 재채점 (bge-reranker-v2-m3)                  (단계마다 pytest)
-                            │
-              1등 점수 < 0.2 → 거절
-                            │
-                            ▼
-                 답변 생성 (gemma3:4b, Ollama)
-                            │
-              출처 → 답 조각 → done 순서로 스트리밍
+```mermaid
+flowchart LR
+  subgraph Q["질문이 답이 되기까지"]
+    direction TB
+    W["웹, 앱"] -->|"POST /ask/stream (SSE)"| API["rag-service<br/>FastAPI"]
+    API --> E["임베딩 검색 20개<br/>bge-m3"]
+    API --> K["키워드 검색 20개<br/>BM25"]
+    E --> R["리랭커 재채점<br/>bge-reranker-v2-m3"]
+    K --> R
+    R -->|"1등 점수 0.2 미만"| X["거절<br/>LLM 호출 안 함"]
+    R -->|"상위 3개"| G["답변 생성<br/>gemma3:4b, Ollama"]
+    G --> S["스트리밍<br/>출처 → 답 조각 → done"]
+  end
+  subgraph D["PDF가 색인되기까지, 단계마다 pytest"]
+    direction TB
+    P["지침 PDF<br/>323쪽"] --> PA["parse"] --> C["chunk"] --> I["index"]
+    I --> DB[("ChromaDB")]
+  end
+  DB -.-> E
+  DB -.-> K
 ```
 
-- **rag-service** (Python): FastAPI, Chroma, Ollama, sentence-transformers
-- **web** (TypeScript): Next.js 16, React 19, Tailwind v4
+## 기술 스택
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"> <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI"> <img src="https://img.shields.io/badge/ChromaDB-FF6446?style=for-the-badge" alt="ChromaDB"> <img src="https://img.shields.io/badge/Ollama-000000?style=for-the-badge&logo=ollama&logoColor=white" alt="Ollama"> <img src="https://img.shields.io/badge/Hugging_Face-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black" alt="Hugging Face"> <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" alt="PyTorch"> <img src="https://img.shields.io/badge/pytest-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white" alt="pytest">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js"> <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React"> <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"> <img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS">
+</p>
+
+<div align="center">
+
+| 구분        | 사용                                                                                      |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| 백엔드      | Python, FastAPI 0.133, Uvicorn                                                            |
+| 프론트엔드  | Next.js 16, React 19, TypeScript, Tailwind CSS 4                                          |
+| 벡터 DB     | ChromaDB 1.5                                                                              |
+| 모델 (로컬) | 답변 gemma3:4b (Ollama), 임베딩 bge-m3, 리랭커 bge-reranker-v2-m3 (sentence-transformers) |
+| PDF 파싱    | pymupdf4llm 2.0                                                                           |
+| 검사        | pytest 9                                                                                  |
+
+</div>
+
+## 설계에서 고민한 내용
+
+병원 내부 문서와 폐쇄망 병원에서의 실제로 운영을 가정하여 설계
+
+### 데이터가 밖으로 나가지 않게
+
+| 고민                                                                      | 결정                                                                                                        | 코드                      |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------- |
+| 외부 LLM API로 보내면 문서가 병원 밖으로 나가고, 폐쇄망에는 인터넷도 없음 | 답변, 임베딩, 리랭커 모델을 모두 로컬에서 실행. 리랭커는 오프라인 모드로 불러 모델 저장소에도 요청하지 않음 | `ask.py` `HF_HUB_OFFLINE` |
+| AI로 개발하면 테스트 출력을 통해 문서 내용이 도구로 넘어감                | 코드와 데이터를 분리. 테스트는 문서 내용 대신 숫자와 통과 여부만 출력                                       | `test_*.py`               |
+
+### 검색과 답변
+
+| 고민                                                                                                                                        | 결정                                                                                                                              | 코드                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| 좌표 규칙으로 PDF를 자르면 문서 틀이 바뀔 때마다 규칙을 다시 짜야 하고 표가 깨짐                                                            | 파싱 도구(pymupdf4llm)로 쪽 단위 마크다운 변환. 제목 수와 표 칸 수를 테스트로 확인                                                | `parse.py`, `test_parse.py`        |
+| 임베딩 거리로 거르면 주제만 비슷한 혼잣말(예: "손 씻기 귀찮은데?")도 통과. 관련 없는 질문(거리 0.52~0.58)과 혼잣말(0.50~0.53)의 구간이 겹침 | 2단계로 판단. 임베딩, 키워드 검색으로 후보를 20개씩 모으고, 리랭커가 다시 채점해 1등 점수가 0.2보다 낮으면 LLM을 부르지 않고 거절 | `ask.py` `retrieve`, `test_ask.py` |
+| 의료 정보라 답만 믿고 처치하면 위험                                                                                                         | 답 위에 절 제목과 쪽 번호를 보여 주고 문장마다 근거 번호를 붙임. 근거에 없는 약 용량이나 처치 판단은 하지 않도록 지시             | `ask.py` `SYSTEM`                  |
+
+### 운영
+
+개정판이나 새 지침이 나오면 누가 어떻게 반영하는지, 실제 RAG 운영 사례 8곳을 조사한 뒤 정했습니다.
+
+| 고민                                             | 결정                                                                                          | 코드                  |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------- | --------------------- |
+| 자동 검사는 PDF 상태만 보므로 무관한 PDF도 통과  | 맞는 PDF인지는 관리자가 확인하고 승인해야 운영에 반영                                         | `ingest.py` `decide`  |
+| 명령어로 넣을 때와 업로드 자동화의 품질이 같은지 | 같은 지침서를 두 방식으로 넣어 비교. 청크 497개, 임베딩, 평가 수치가 같음                     | `test_ingest.py`      |
+| PDF마다 검사 기준을 새로 정할 수 없음            | 개발 때 쓴 파싱, 청크, 검색 테스트 기준을 업로드 검사에 그대로 옮김                           | `ingest.py` `check_*` |
+| 검사에 떨어지거나 반려되면 챗봇이 멈추면 안 됨   | 임시 컬렉션에서 먼저 처리하고, 승인된 판만 운영 컬렉션으로 복사. 실패하면 옛 판으로 계속 답함 | `ingest.py` `promote` |
 
 ## 데이터 파이프라인
 
